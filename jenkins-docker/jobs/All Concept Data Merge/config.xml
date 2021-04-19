@@ -1,0 +1,129 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>managed_inputs</name>
+          <description></description>
+          <defaultValue>s3://avillach-73-bdcatalyst-etl/general/resources/Managed_Inputs.csv</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>java_bin_prefix</name>
+          <description></description>
+          <defaultValue>biodatacatalyst_javabins_</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>metadata_file</name>
+          <description></description>
+          <defaultValue>s3://avillach-73-bdcatalyst-etl/general/data/metadata.json</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.3.0">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/ETL-MissionControl-dbgap-submodule</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/master</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+# Managed Inputs
+
+
+mkdir data
+mkdir completed
+mkdir hierarchies
+mkdir processing
+
+find data/ -type f -name &quot;phs*&quot; -exec rm -rf {} \;
+find processing/ -type f -exec rm -rf {} \;
+find complete -type f -exec rm -rf {} \;
+rm -rf pic-sure-hpds/
+aws s3 cp ${managed_inputs} data/
+
+aws s3 cp ${metadata_file} data/metadata.json
+
+csvcut -c 1,2,3,8,9 data/Managed_Inputs.csv &gt; inputs.csv
+
+
+cat	inputs.csv
+IFS=&apos;,&apos;
+[ ! -f inputs.csv ]
+while read abv_name stdy_id stdy_type data_ready data_processed
+do
+  if [[ ${data_ready,,} == *&quot;yes&quot;* ]]; then
+
+     echo &quot;s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/completed/${stdy_id}/${abv_name^^}_allConcepts.csv data/${stdy_id}_allConcepts.csv --quiet&quot;
+   	 aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/completed/${stdy_id}/${abv_name^^}_allConcepts.csv data/${stdy_id}_allConcepts.csv --quiet
+  fi
+done  &lt; inputs.csv
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/completed/HRMN_allConcepts.csv data/ --quiet
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/completed/GLOBAL_allConcepts.csv data/GLOBAL_allConcepts.csv --quiet
+
+java -jar jars/DbGapDataMerge.jar
+
+#aws s3 cp completed/allConcepts.csv s3://avillach-73-bdcatalyst-etl/general/completed/
+
+#sed -i &apos;s/µ/\\/g&apos; completed/allConcepts.csv
+
+mv completed/allConcepts.csv data/
+
+java -jar jars/RemoveConsentZeroPatients.jar
+
+java -jar jars/BDCValidations.jar
+
+git clone https://github.com/hms-dbmi/pic-sure-hpds
+
+mv data/allConcepts.csv pic-sure-hpds/docker/pic-sure-hpds-etl/hpds/allConcepts.csv
+
+cd pic-sure-hpds/docker/pic-sure-hpds-etl/
+
+cat /dev/urandom | tr -dc &apos;a-zA-Z0-9&apos; | fold -w 32 | head -n 1 &gt; hpds/encryption_key
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/resources/docker-compose-csv-loader.yml . --quiet
+
+docker-compose -f docker-compose-csv-loader.yml up
+
+aws s3 cp ${metadata_file} hpds/metadata.json --quiet
+
+ts=$(date +&quot;%m-%d-%y&quot;)
+
+cd hpds
+
+tar -zcf ${java_bin_prefix}${ts}.tar.gz columnMeta.javabin encryption_key allObservationsStore.javabin metadata.json
+
+echo &quot;aws s3 cp ${java_bin_prefix}${ts}.tar.gz s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/ --quiet&quot;
+aws s3 cp ${java_bin_prefix}${ts}.tar.gz s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/ --quiet</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

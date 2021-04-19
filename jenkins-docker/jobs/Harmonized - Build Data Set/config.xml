@@ -1,0 +1,75 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Once Harmonized Patient Mapping is generated this job will generate the harmonized all concepts file.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>managed_input</name>
+          <description></description>
+          <defaultValue>s3://avillach-73-bdcatalyst-etl/general/resources/Managed_Inputs.csv</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.3.0">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/ETLToolSuite-MissionControl</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/master</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+# Managed Inputs
+aws s3 cp ${managed_input} data/
+
+IFS=$&apos;\r\n&apos; GLOBIGNORE=&apos;*&apos; command eval  &apos;studyids=($(cut -d , -f 1 data/Managed_Inputs.csv | grep -v Study\ Abbr | uniq))&apos;
+
+mkdir data
+mkdir completed
+mkdir hierarchies
+mkdir processing
+
+echo &apos;### Building DCC Harmonized data set&apos;
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/data/ data/ --recursive
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/resources/job.config resources/
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/mappings/mapping.csv mappings/
+
+echo &quot;&quot;
+echo &quot;#### Building Harmonized files ####&quot;
+echo &quot;&quot;
+
+java -jar GenerateAllConcepts.jar -propertiesfile resources/job.config -mappingskipheaders N
+
+aws s3 cp completed/HRMN_allConcepts.csv s3://avillach-73-bdcatalyst-etl/hrmn/completed/HRMN_allConcepts.csv
+
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

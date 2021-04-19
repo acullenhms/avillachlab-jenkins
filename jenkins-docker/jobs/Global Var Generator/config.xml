@@ -1,0 +1,134 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>This job will generate Global allConcepts file that contains all global vars.&#xd;
+&#xd;
+global vars are identified by first character being an underscore.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>managed_inputs</name>
+          <description></description>
+          <defaultValue>s3://avillach-73-bdcatalyst-etl/general/resources/Managed_Inputs.csv</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.3.0">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/ETL-MissionControl-dbgap-submodule</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/master</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+# Managed Inputs
+
+
+mkdir data
+mkdir completed
+mkdir hierarchies
+mkdir processing
+
+find data/ -type f -name &quot;phs*&quot; -exec rm -rf {} \;
+find processing/ -type f -exec rm -rf {} \;
+find completed -type f -exec rm -rf {} \;
+
+aws s3 cp ${managed_inputs} data/
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/data/metadata.json data/
+
+csvcut -c 1,2,3,8,9 data/Managed_Inputs.csv &gt; inputs.csv
+
+rm -rf uniq_ids.txt
+
+echo &quot;testing&quot;
+
+IFS=&apos;,&apos;
+[ ! -f inputs.csv ]
+while read abv_name stdy_id stdy_type data_ready data_processed
+do
+   if [[ ${data_ready,,} == *&quot;yes&quot;* ]]; then
+      #if [[ ${abv_name,,} != *&quot;ORCHID&quot;* ]]; then
+      #   if [[ ${data_processed,,} == *&quot;no&quot;* ]]; then
+         
+      echo ${abv_name} &gt;&gt; uniq_ids.txt
+
+      #   else
+      #      echo &quot;${abv_name} already processed&quot;
+      #   fi
+      #fi
+   else 
+      echo &quot;$abv_name not ready for processing&quot;
+   fi
+done &lt; inputs.csv
+
+
+while IFS= read -r studyid; do
+#for studyid in ${studyids[@]}; do
+
+  echo &quot;processing ${studyid}&quot;
+  
+  aws s3 cp s3://avillach-73-bdcatalyst-etl/${studyid,,}/rawData/ data/ --recursive --exclude &quot;*&quot; --include &quot;*subject.multi*&quot; --include &quot;*Subject.Multi*&quot; --include &quot;*Subject.MULTI*&quot; --quiet
+  
+  aws s3 cp s3://avillach-73-bdcatalyst-etl/${studyid,,}/rawData/ data/ --recursive --exclude &quot;*&quot; --include &quot;*sample.multi*&quot; --include &quot;*Sample.Multi*&quot; --include &quot;*Sample.MULTI*&quot; --quiet
+  
+  aws s3 cp s3://avillach-73-bdcatalyst-etl/${studyid,,}/data/${studyid^^}_PatientMapping.v2.csv data/
+
+
+done &lt; uniq_ids.txt
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/completed/HRMN_allConcepts.csv data/ --quiet
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/data/HRMN_PatientMapping.v2.csv data/ --quiet
+
+aws s3 cp ${managed_inputs} data/
+
+
+java -jar jars/SampleIdGenerator.jar 
+
+java -jar jars/ConsentGroupGenerator.jar
+
+java -jar jars/PHSIdGenerator.jar
+
+java -jar jars/RootNodeGenerator.jar
+
+aws s3 cp completed/ s3://avillach-73-bdcatalyst-etl/general/data/ --recursive
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/mappings/mapping.prerootnodes.csv mappings/mapping.csv
+
+cat completed/rootnode_mapping.csv &gt;&gt; mappings/mapping.csv
+
+cat completed/studies_consents_mapping.csv &gt;&gt; mappings/mapping.csv
+
+aws s3 cp mappings/mapping.csv s3://avillach-73-bdcatalyst-etl/general/mappings/mapping.postrootnodes.csv
+
+#aws s3 cp s3://avillach-73-bdcatalyst-etl/general/resources/job.config resources/
+
+#aws s3 cp s3://avillach-73-bdcatalyst-etl/general/data/ data/ --recursive</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

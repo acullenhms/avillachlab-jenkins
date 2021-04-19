@@ -1,0 +1,56 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>This job will download / update the gen3-client&#xd;
+&#xd;
+It will also configure a default profile for gen3-client to use.&#xd;
+&#xd;
+You will need an api-key from gen3 in order to run this job.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.PasswordParameterDefinition>
+          <name>__CREDIENTIALS__</name>
+          <description>Paste the gen3 api credientials.json file here</description>
+          <defaultValue>{AQAAABAAAAMQEqywhVkeOoD4B8DkPT8Wuyx1kazfj1KscAYW+mEWD0qjSRjma4y8hVqnAU4MkOoMMi4B3TqdSreLv5ToUp8lei7nr6VlLDNaYMcvBgJJfji4a8giQhbaM9xAyOcv7GG6R1ttNzzl854X9d5a+kjSsjs/rezP318ds4hiCiArAcgdFN4fhTXyErtU0Iehd4XQPcHM6XmOOumhSYw1ABPZ5S5IkmE366b3gnachZo8JUPU1kSYRwdiutXuV5ebNFQcgIWxCxTNFPrqplwhFuUOCX1B9G1MtAT+I0PFAOmEQfcWND12vgllYap5LfAOBya1aQLbTOsFJk5wqa07SnLpg2PVqNBMU4fVA9i2TpimlrBT9a+2S5AKvPaEhIGVnlmfimR4LiC1JnfT6uiE7VGjTbj2Y9xraAXtVMBvzKHNOkFMdffs7DbCtVdploAVSFfmSHK3ARC8wh2gDNdsMhXNeJoHC+7ljCutArSqXPf7Z6RSKY4q+U4wIxmes9DFDK/KfBBkxp0GDBRu+l2Yn+vgAzyaDZcnz4pWHM1yNsFsvGhzN3cFURWegHb1/L6PHxoT34aW35lhF4MewZk+OmBKDBOat3tI0j7Yds4aqoOyzxh9wAB3i/YZO5FDTX5l/CIJxtHraEsJABb5yuJU1iNnWLSzP4HEGS9NgsUAxl7ZWXLDMih/w9RlBLVFnxjxW2DFTxT123YJMoKxHC2tVMejpS/p1geeqKuUrBZgdXEkK7ym5NOOjio6+hcKtCp3V5ePxxrbiqOfKLWArJC/Pod511P4mPmKJ0Gy3GA573xRuq65fUs/w7T+PxJ4q5vkKaQXK/V2OPptp/YEMyZXrR1Mf+V5LtJJZmaS/YOKsDKtpwZKlBVYVaKStjgxhDR6K1r55jDwk7DehKSbGyMFHNztoLx1aGoAGuPdTnMamgD0/ul7IMRw2nw2u1tA79K/1tJnx5VLQwH7cR3ZH+4fCn5zVriKw61zPpGMsUUKipxURwY3fy6dzyNZUoNIJfhLpZmQmoq9j/EPqvpNPiX4QeOEbtgZBz0O8kZanUciG4jMRnI=}</defaultValue>
+        </hudson.model.PasswordParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>__API_END_POINT__</name>
+          <description></description>
+          <defaultValue>https://gen3.biodatacatalyst.nhlbi.nih.gov/</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>curl https://api.github.com/repos/uc-cdis/cdis-data-client/releases/latest | grep browser_download_url.*linux |  cut -d &apos;&quot;&apos; -f 4 | wget -qi -
+
+unzip -o dataclient_linux.zip
+
+cp gen3-client /usr/local/bin/ | cp gen3-client /usr/bin/
+
+set +x
+
+echo ${__CREDIENTIALS__} &gt; credientials.json 
+
+set -x
+
+gen3-client configure --profile=jenkins --cred=credientials.json --apiendpoint=${__API_END_POINT__}
+
+rm -rf credientials.json  
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

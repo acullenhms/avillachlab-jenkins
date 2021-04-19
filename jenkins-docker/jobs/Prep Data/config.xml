@@ -1,0 +1,161 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>This job will decode and analyze data sets and store them in an s3 bucket.&#xd;
+&#xd;
+Additionally it will generate a mapping file.&#xd;
+&#xd;
+</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>managed_inputs</name>
+          <description></description>
+          <defaultValue>s3://avillach-73-bdcatalyst-etl/general/resources/Managed_Inputs.csv</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.3.0">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/ETL-MissionControl-dbgap-submodule</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/master</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+# Managed Inputs
+
+
+mkdir data
+mkdir completed
+mkdir hierarchies
+mkdir processing
+
+find data/ -type f -name &quot;phs*&quot; -exec rm -rf {} \;
+
+
+aws s3 cp ${managed_inputs} data/
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/data/metadata.json data/
+
+csvcut -c 1,2,3,8,9 data/Managed_Inputs.csv &gt; inputs.csv
+
+IFS=&apos;,&apos;
+[ ! -f inputs.csv ]
+while read abv_name stdy_id stdy_type data_ready data_processed
+do
+   echo &quot;$abv_name $data_ready $data_processed&quot;
+   find data/ -name &quot;phs*&quot; -exec rm -rf {} \;
+
+   find completed/ -type f -exec rm -rf {} \;
+
+   if [[ ${data_ready,,} == *&quot;yes&quot;* ]]; then
+      if [[ ${abv_name,,} != *&quot;ORCHID&quot;* ]]; then
+         if [[ ${data_processed,,} == *&quot;no&quot;* ]]; then
+         	
+            aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/resources/job.config resources/ --quiet
+   
+            aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/rawData/ data/ --recursive --include &quot;*${stdy_id}*&quot; --quiet
+            
+            java -jar jars/DbgapTreeBuilder2.jar -dataseperator &apos;\t&apos; -trialid ${stdy_id^^}
+            
+            aws s3 cp completed/${stdy_id^^}_mapping.csv s3://avillach-73-bdcatalyst-etl/${abv_name,,}/mappings/${stdy_id}/treebuilder_mapping.csv --quiet
+            
+            #java -jar jars/ParentNodeModifier.jar -mappingskipheaders N -trialid ${stdy_id^^} -mappingfile completed/${stdy_id^^}_mapping.csv
+         	
+            aws s3 cp completed/${stdy_id^^}_mapping.csv s3://avillach-73-bdcatalyst-etl/${abv_name,,}/mappings/${stdy_id}/parent_modifer_mapping.csv --quiet
+            
+            mappings=$(wc -l completed/${stdy_id^^}_mapping.csv)
+
+            echo &quot;mappings generated for ${abv_name} - ${stdy_id}: ${mappings}&quot;
+            
+            # run additional steps to build mapping files
+            ### framingham
+            if [ ${stdy_id,,} = &apos;phs000007&apos; ]; then
+            
+              find data/ -name &quot;phs*&quot; -exec rm -rf {} \;
+                            
+              aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/mappings/${stdy_id}/parent_modifer_mapping.csv mappings/mapping.csv --quiet
+
+              find completed/ -type f -exec rm -rf {} \;
+              
+              aws s3 cp s3://avillach-73-bdcatalyst-etl/fhs/data/FHS_sHARE_nodes.csv data/ --quiet
+              aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/decoded_data/ data/ --recursive --quiet
+              #aws s3 cp s3://avillach-73-bdcatalyst-etl/fhs/mappings/mapping.csv mappings/ --quiet
+              
+              java -jar jars/FHSShareTreeBuilder.jar -trialid ${stdy_id^^} -mappingskipheaders N
+            
+            fi
+            
+            aws s3 cp completed/${stdy_id^^}_mapping.csv s3://avillach-73-bdcatalyst-etl/${abv_name,,}/mappings/${stdy_id,,}/mapping.csv 
+            
+         else
+            echo &quot;${abv_name,,} ${stdy_id^^} already processed.&quot;
+         fi
+      fi
+   else 
+      echo &quot;$abv_name ${stdy_id^^} not ready for processing&quot;
+   fi
+   
+   
+done &lt; inputs.csv
+
+# run data analyzer
+IFS=&apos;,&apos;
+[ ! -f inputs.csv ]
+while read abv_name stdy_id stdy_type data_ready data_processed
+do
+   if [[ ${data_ready,,} == *&quot;yes&quot;* ]]; then
+      if [[ ${abv_name,,} != *&quot;ORCHID&quot;* ]]; then
+         if [[ ${data_processed,,} == *&quot;no&quot;* ]]; then
+	       echo &quot;${abv_name,,} ${stdy_id^^} running data type analysis.&quot;
+         
+           find data/ -name &quot;phs*&quot; -exec rm -rf {} \;
+        
+           find completed/ -type f -exec rm -rf {} \;
+           
+           rm -rf mappings/mapping.csv
+           echo &quot;aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/decoded_data/ data/ --recursive --quiet&quot;
+           aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/decoded_data/ data/ --recursive --quiet
+           echo &quot;aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/mappings/${stdy_id,,}/mapping.csv mappings/ --quiet&quot;        
+           aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/mappings/${stdy_id,,}/mapping.csv mappings/ --quiet
+           echo &quot;java -jar jars/DataAnalyzer.jar -trialid ${stdy_id^^} --mappingfile mappings/mapping.csv -mappingskipheaders N&quot;        
+           java -jar jars/DataAnalyzer.jar -trialid ${stdy_id^^} --mappingfile mappings/mapping.csv -mappingskipheaders N
+        
+           aws s3 cp mappings/mapping.csv s3://avillach-73-bdcatalyst-etl/${abv_name,,}/mappings/${stdy_id}/mapping.csv --quiet
+         else
+           echo &quot;${abv_name,,} ${stdy_id^^} already processed.&quot;
+         fi
+      fi
+   else 
+      echo &quot;${abv_name} ${stdy_id^^} not ready for processing&quot;
+   fi
+done &lt; inputs.csv
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

@@ -1,0 +1,53 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.3.0">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/ETLToolSuite-MissionControl</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/master</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+
+mkdir data
+mkdir completed
+mkdir hierarchies
+mkdir processing
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/mappings/mapping.postrootnodes.csv mappings/mapping.csv 
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/resources/job.config resources/
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/data/ data/ --recursive
+
+java -jar GenerateAllConcepts.jar -propertiesfile resources/job.config
+
+aws s3 cp completed/GLOBAL_allConcepts.csv s3://avillach-73-bdcatalyst-etl/general/completed/
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

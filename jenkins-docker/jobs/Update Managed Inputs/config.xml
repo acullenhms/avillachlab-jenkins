@@ -1,0 +1,51 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>s3_location</name>
+          <description></description>
+          <defaultValue>s3://avillach-73-bdcatalyst-etl/general/resources/Managed_Inputs.csv</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.FileParameterDefinition>
+          <name>Managed_Inputs.csv</name>
+          <description></description>
+        </hudson.model.FileParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+
+if test -f &quot;Managed_Inputs.csv&quot;; then
+  ts=$(date +&quot;%Y-%m-%d_%H-%M-%S&quot;)
+  
+  aws s3 cp s3://avillach-73-bdcatalyst-etl/general/resources/Managed_Inputs.csv s3://avillach-73-bdcatalyst-etl/general/resources/Managed_Inputs.csv_${ts}
+  
+
+  aws s3 cp Managed_Inputs.csv s3://avillach-73-bdcatalyst-etl/general/resources/Managed_Inputs.csv
+else 
+  echo &quot;Managed Inputs not changed.&quot;
+fi
+
+
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

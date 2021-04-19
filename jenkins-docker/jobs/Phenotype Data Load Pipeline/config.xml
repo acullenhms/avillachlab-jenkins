@@ -1,0 +1,95 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job@2.39">
+  <actions>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@1.7.0"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@1.7.0">
+      <jobProperties/>
+      <triggers/>
+      <parameters/>
+      <options/>
+    </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
+  </actions>
+  <description>This pipeline will take the current Managed Inputs and process all data that have the following flags:&#xd;
+&#xd;
+This is compatible with dbgap studies.&#xd;
+&#xd;
+Data is ready to process = Yes&#xd;
+Data is processed = No&#xd;
+&#xd;
+</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty/>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>managed_inputs</name>
+          <description></description>
+          <defaultValue>s3://avillach-73-bdcatalyst-etl/general/resources/Managed_Inputs.csv</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>java_bin_prefix</name>
+          <description></description>
+          <defaultValue>biodatacatalyst_javabins_</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2.80">
+    <script>pipeline {
+    agent any 
+    stages {
+        stage(&apos;Prepare data for ingestion&apos;) { 
+            steps {
+                script {  
+                    def result = build job: &apos;Prep Data&apos;, 
+                    wait: true
+                }
+            }
+        }
+        stage(&apos;Update Patient Mapping and Sequence Patients&apos;) { 
+            steps {
+                script {  
+                    def result = build job: &apos;Update Patient Mappings&apos;, 
+                    wait: true
+                }
+            }
+        }
+        stage(&apos;Generate Global Variables&apos;) { 
+            steps {
+                script {  
+                    def result = build job: &apos;Global Var Generator&apos;, 
+                    wait: true
+                }
+                script {  
+                    def result = build job: &apos;Generate Global All Concepts&apos;, 
+                    wait: true
+                }
+                script {  
+                    def result = build job: &apos;Merge Global Concepts&apos;, 
+                    wait: true
+                }
+            }
+        }
+        stage(&apos;Generate javabins&apos;) { 
+            steps {
+                script {  
+                    def result = build job: &apos;All Concept Data Merge&apos;,
+                        parameters: [[$class: &apos;StringParameterValue&apos;, 
+                            name: &apos;java_bin_prefix&apos;, 
+                            value: params.java_bin_prefix,
+                            ]
+                        ],
+                        wait: true
+                }
+            }
+        }
+    }
+}</script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>

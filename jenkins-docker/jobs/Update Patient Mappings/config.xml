@@ -1,0 +1,110 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>managed_inputs</name>
+          <description></description>
+          <defaultValue>s3://avillach-73-bdcatalyst-etl/general/resources/Managed_Inputs.csv</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.3.0">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/ETL-MissionControl-dbgap-submodule</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/master</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+
+#studyids=(&quot;hvh&quot;)
+
+find data/ -exec rm -rf {} \;
+find completed/ -exec rm -rf {} \;
+
+mkdir completed
+
+mkdir data
+
+# Managed Inputs
+aws s3 cp ${managed_inputs} data/
+
+csvcut -c 1,2,3,8,9 data/Managed_Inputs.csv &gt; inputs.csv
+
+IFS=&apos;,&apos;
+[ ! -f inputs.csv ]
+while read abv_name stdy_id stdy_type data_ready data_processed
+do
+   echo &quot;$abv_name $data_ready $data_processed&quot;
+   find data/ -name &quot;phs*&quot; -exec rm -rf {} \;
+
+   find completed/ -type f -exec rm -rf {} \;
+
+   if [[ ${data_ready,,} == *&quot;yes&quot;* ]]; then
+      if [[ ${abv_name,,} != *&quot;ORCHID&quot;* ]]; then
+         if [[ ${data_processed,,} == *&quot;no&quot;* ]]; then
+
+           aws s3 cp s3://avillach-73-bdcatalyst-etl/${studyid,,}/data/${studyid^^}_PatientMapping.v2.csv data/
+    
+           aws s3 cp s3://avillach-73-bdcatalyst-etl/${studyid,,}/rawData/ data/ --recursive --exclude &quot;*&quot; --include &quot;*subject.multi*.txt&quot; --include &quot;*Subject.Multi*.txt&quot; --include &quot;*Subject.MULTI*.txt&quot; --include &quot;*subject.MULTI*.txt&quot; --quiet
+         else
+            echo &quot;${abv_name,,} ${stdy_id^^} already processed.&quot;
+         fi
+      fi
+   else 
+      echo &quot;$abv_name ${stdy_id^^} not ready for processing&quot;
+   fi
+  
+done &lt; inputs.csv
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/data/PatientPool.txt data/
+
+java -jar jars/HPDSPatientNumTracker.jar
+
+#### get all subject multi files, job.config and patient mapping file from each study 
+
+ts=$(date +&quot;%Y-%m-%d_%H-%M-%S&quot;)
+
+#aws s3 cp s3://avillach-73-bdcatalyst-etl/general/data/PatientPool.txt s3://avillach-73-bdcatalyst-etl/general/data/PatientPool.txt${ts}
+#aws s3 cp completed/PatientPool.txt s3://avillach-73-bdcatalyst-etl/general/data/PatientPool.txt
+
+#IFS=&apos;,&apos;
+#[ ! -f inputs.csv ]
+#while read abv_name stdy_id stdy_type data_ready data_processed
+#do
+
+#    aws s3 cp s3://avillach-73-bdcatalyst-etl/${studyid,,}/data/${studyid^^}_PatientMapping.v2.csv s3://avillach-73-bdcatalyst-etl/${studyid,,}/data/${studyid^^}_PatientMapping.v2.csv_${ts}
+#	aws s3 cp data/${studyid^^}_PatientMapping.v2.csv s3://avillach-73-bdcatalyst-etl/${studyid,,}/data/${studyid^^}_PatientMapping.v2.csv
+
+#done
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>
