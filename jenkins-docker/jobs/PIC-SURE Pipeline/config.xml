@@ -18,6 +18,7 @@
 def retrieveBuildSpecId;
 def pipelineBuildId;
 def build_hashes = {};
+def source_dictionary_s3_object_key;
 pipeline {
     agent any 
     stages {
@@ -37,6 +38,7 @@ pipeline {
                     for(def build : buildSpec.application){
                         build_hashes[build.project_job_git_key] = build.git_hash
                     }
+                    source_dictionary_s3_object_key = buildSpec.source_dictionary_s3_object_key
                 }
             }
         }
@@ -72,16 +74,18 @@ pipeline {
                )
             }
         }
-        stage(&apos;PIC-SURE Dictionary image builds and data import&apos;){
+        stage(&apos;PIC-SURE Dictionary and Visualization image builds and data import&apos;){
             steps {
                 script {
-                    build job: &apos;PIC-SURE-HPDS-DICTIONARY Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSS&apos;]]]
-                    build job: &apos;IMPORT_HPDS_DICTIONARY_DATA&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;destination_bucket_hash&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]]
-                    build job: &apos;PIC-SURE-HPDS-DICTIONARY-RESOURCE Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;destination_bucket_hash&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSS&apos;]]]
+                    //build job: &apos;PIC-SURE-HPDS-DICTIONARY Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSS&apos;]]]
+                    // remove the IMPORT_HPDS_DICTIONARY_DATA does not need to run during deployment
+                    //build job: &apos;IMPORT_HPDS_DICTIONARY_DATA&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;destination_bucket_hash&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]]
+                    build job: &apos;PIC-SURE-HPDS-DICTIONARY-RESOURCE Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;source_dictionary_s3_object_key&apos;, value: source_dictionary_s3_object_key],[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSS&apos;]]]
+                    build job: &apos;PIC-SURE-VISUALIZATION Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSV&apos;]]]
                 }
             }
         }
-        stage(&apos;Wildfly Build and UI Customization&apos;){
+        stage(&apos;Wildfly Build and UI Customization&apos;) {
             steps {
                 parallel (
                     wildfly:{

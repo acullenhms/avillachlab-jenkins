@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>Builds docker image to run RawDataImporter-jar-with-dependencies.jar for dictionary loading.</description>
+  <description></description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -28,7 +28,7 @@
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/pic-sure-search-prototype</url>
+        <url>https://github.com/hms-dbmi/pic-sure-visualization-resource.git</url>
         <credentialsId>c1cbb1df-9da8-4f3f-85b9-8de0b9685008</credentialsId>
       </hudson.plugins.git.UserRemoteConfig>
     </userRemoteConfigs>
@@ -51,7 +51,7 @@
     <hudson.tasks.Maven>
       <targets>clean install -DskipTests</targets>
       <mavenName>Maven 3.6.3</mavenName>
-      <pom>tagging/pom.xml</pom>
+      <pom>visualization/pom.xml</pom>
       <usePrivateRepository>false</usePrivateRepository>
       <settings class="jenkins.mvn.DefaultSettingsProvider"/>
       <globalSettings class="jenkins.mvn.DefaultGlobalSettingsProvider"/>
@@ -60,16 +60,10 @@
     <hudson.tasks.Shell>
       <command>GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
-
-cd tagging
-
-docker build -t hms-dbmi/pic-sure-hpds-dictionary:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} -f Dockerfile_hpds_dictionary .
-
-docker save hms-dbmi/pic-sure-hpds-dictionary:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} | gzip &gt; pic-sure-hpds-dictionary.tar.gz
-
-aws s3 --sse=AES256 cp pic-sure-hpds-dictionary.tar.gz s3://$S3_BUCKET_NAME/releases/jenkins_pipeline_build_${pipeline_build_id}/pic-sure-hpds-dictionary.tar.gz
-
-</command>
+cd visualization
+docker build -t hms-dbmi/pic-sure-visualization:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
+docker save hms-dbmi/pic-sure-visualization:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} | gzip &gt; pic-sure-hpds-visualization-resource.tar.gz
+aws s3 --sse=AES256 cp pic-sure-hpds-visualization-resource.tar.gz s3://$S3_BUCKET_NAME/releases/jenkins_pipeline_build_${pipeline_build_id}/pic-sure-hpds-visualization-resource.tar.gz</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

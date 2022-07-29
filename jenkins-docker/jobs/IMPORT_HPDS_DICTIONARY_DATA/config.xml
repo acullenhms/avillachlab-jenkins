@@ -7,18 +7,13 @@
     <hudson.model.ParametersDefinitionProperty>
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
-          <name>destination_bucket_hash</name>
-          <description>the git hash of the commit that changed the data set</description>
-          <trim>true</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
           <name>pipeline_build_id</name>
           <defaultValue>MANUAL_RUN</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>managed_inputs</name>
-          <defaultValue>s3://avillach-73-bdcatalyst-etl/general/resources/Managed_Inputs.csv</defaultValue>
+          <defaultValue>s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/Managed_Inputs.csv</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
@@ -55,7 +50,12 @@
     <hudson.tasks.Shell>
       <command>#!/bin/bash
 ### Load Dictionary ETL Image
-aws s3 --sse=AES256 cp s3://${stack_s3_bucket}/releases/jenkins_pipeline_build_${pipeline_build_id}/pic-sure-hpds-dictionary.tar.gz pic-sure-hpds-dictionary.tar.gz
+aws s3 --sse=AES256 cp s3://${stack_s3_bucket}/releases/jenkins_pipeline_build_${pipeline_build_id}/pic-sure-hpds-dictionary.tar.gz pic-sure-hpds-dictionary.tar.gz --quiet
+#aws s3 --sse=AES256 cp s3://${stack_s3_bucket}/data/${destination_bucket_hash}/javabins_rekeyed.tar.gz .
+
+#tar -zxvf javabins_rekeyed.tar.gz columnMeta.csv conceptsToRemove.csv
+
+
 
 HPDS_ETL_IMAGE=`docker load &lt; ./pic-sure-hpds-dictionary.tar.gz  | cut -d &apos; &apos; -f 3`
 echo $HPDS_ETL_IMAGE
@@ -64,16 +64,21 @@ ls -alh `pwd`
 mkdir -p tmp/
 mkdir -p local/source/
 
-### Pull dictionaries from s3
+#cp columnMeta.csv local/source/
+#cp conceptsToRemove.csv local/source/
+
+### Pull data set to rekey.
+aws sts assume-role --duration-seconds 3600 --role-arn $arn_role_data --role-session-name &quot;s3-test&quot; &gt; assume-role-output.txt
+
+export AWS_ACCESS_KEY_ID=`grep AccessKeyId assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+export AWS_SECRET_ACCESS_KEY=`grep SecretAccessKey assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+export AWS_SESSION_TOKEN=`grep SessionToken assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+
 aws s3 cp ${managed_inputs} .
 
-awk -F, &apos;{print $1&quot;,&quot;$2&quot;,&quot;$3&quot;,&quot;$8&quot;,&quot;$9}&apos; Managed_Inputs.csv &gt; inputs.csv
+csvcut -c 1,2,3,8,9 Managed_Inputs.csv &gt; inputs.csv
 
-echo &quot;testing&quot;
-unset AWS_ACCESS_KEY_ID
-unset AWS_SECRET_ACCESS_KEY
-unset AWS_SESSION_TOKEN
-
+cat Managed_Inputs.csv
 # Generate mappings
 cat	inputs.csv
 
@@ -83,29 +88,55 @@ while read abv_name stdy_id stdy_type data_ready data_processed
 do
   if [[ &quot;${data_ready,,}&quot; == &quot;yes&quot; ]]; then
 
-	  if [[ ${stdy_type,,} == &quot;topmed&quot; ]] || [[ ${stdy_type,,} == &quot;parent&quot; ]]; then
+	  #if [[ ${stdy_type,,} == &quot;topmed&quot; ]] || [[ ${stdy_type,,} == &quot;parent&quot; ]]; then
+        echo &quot;downloading metadata for $stdy_id&quot;
+        aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/${stdy_id}/metadata/ local/source/${stdy_id}/rawData/ --recursive --quiet
         
-        aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/${stdy_id}/metadata/ local/source/${stdy_id}/rawData/ --recursive --exclude &quot;*&quot; --include &quot;${stdy_id}*.xml&quot;
-        
-      fi
+      #fi
    else 
       echo &quot;$abv_name not ready for processing&quot;
    fi
 done &lt; inputs.csv
 
 
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/hrmn/metadata/ local/source/hrmn/rawData/ --recursive --quiet
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/columnMeta/columnMeta.csv local/source/columnMeta.csv
+### Temp to get to this work
+unset AWS_ACCESS_KEY_ID
+unset AWS_SECRET_ACCESS_KEY
+unset AWS_SESSION_TOKEN
+
+aws sts assume-role --duration-seconds 3600 --role-arn arn:aws:iam::736265540791:role/dbgap-etl --role-session-name &quot;s3-test&quot; &gt; assume-role-output.txt
+
+export AWS_ACCESS_KEY_ID=`grep AccessKeyId assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+export AWS_SECRET_ACCESS_KEY=`grep SecretAccessKey assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+export AWS_SESSION_TOKEN=`grep SessionToken assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/data/conceptsToRemove.txt local/source/conceptsToRemove.csv
+
+unset AWS_ACCESS_KEY_ID
+unset AWS_SECRET_ACCESS_KEY
+unset AWS_SESSION_TOKEN
+
+### need conceptsToRemove.txt from another source after development is done
+
 #### Execute dictionary import
 # volume mount pwd that contains original data files as /opt/local/source/
 #
 mkdir -p &quot;${WORKSPACE}&quot;/output
-
-docker run -i -v &quot;${WORKSPACE}&quot;/local/source:/local/source -v &quot;${WORKSPACE}&quot;/output:/usr/local/docker-config/search/ -eLOADER_NAME=RawDataImporter $HPDS_ETL_IMAGE
+echo &quot;docker run -i -v &quot;${WORKSPACE}&quot;/local/source:/local/source -v &quot;${WORKSPACE}&quot;/output:/usr/local/docker-config/search/ -eLOADER_NAME=DictionaryImporterUtil $HPDS_ETL_IMAGE&quot;
+docker run -i -v &quot;${WORKSPACE}&quot;/local/source:/local/source/ -v &quot;${WORKSPACE}&quot;/output:/usr/local/docker-config/search/ -eLOADER_NAME=DictionaryImporterUtil $HPDS_ETL_IMAGE
 
 cd &quot;$WORKSPACE&quot;/output
 
 tar -cvzf dictionary.javabin.tar.gz *.javabin 
 
-aws s3 --sse=AES256 cp dictionary.javabin.tar.gz s3://${stack_s3_bucket}/data/${destination_bucket_hash}/
+#echo &quot;aws s3 --sse=AES256 cp dictionary.javabin.tar.gz s3://${stack_s3_bucket}/data/${destination_bucket_hash}/&quot;
+#aws s3 --sse=AES256 cp dictionary.javabin.tar.gz s3://${stack_s3_bucket}/data/${destination_bucket_hash}/ --quiet
+
+echo &quot;aws s3 --sse=AES256 cp dictionary.javabin.tar.gz s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/dictionary-${pipeline_build_id}.javabin.tar.gz&quot;
+aws s3 --sse=AES256 cp dictionary.javabin.tar.gz s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/dictionary-${pipeline_build_id}.javabin.tar.gz
 
                 </command>
       <configuredLocalRules/>

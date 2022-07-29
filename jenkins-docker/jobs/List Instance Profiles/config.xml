@@ -4,22 +4,7 @@
   <description></description>
   <keepDependencies>false</keepDependencies>
   <properties/>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.1.1">
-    <configVersion>2</configVersion>
-    <userRemoteConfigs>
-      <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/avillachlab-secure-infrastructure</url>
-      </hudson.plugins.git.UserRemoteConfig>
-    </userRemoteConfigs>
-    <branches>
-      <hudson.plugins.git.BranchSpec>
-        <name>$git_branch_avillachlab_secure_infrastructure</name>
-      </hudson.plugins.git.BranchSpec>
-    </branches>
-    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-    <submoduleCfg class="list"/>
-    <extensions/>
-  </scm>
+  <scm class="hudson.scm.NullSCM"/>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
@@ -42,29 +27,60 @@ aws iam list-instance-profiles
 #aws iam delete-instance-profile --instance-profile-name wildfly-deployment-s3-profile-25db717
 #aws iam delete-instance-profile --instance-profile-name hpds-deployment-s3-profile-25db717
 #aws iam delete-instance-profile --instance-profile-name dictionary-deployment-s3-profile-25db717
-#aws iam delete-instance-profile --instance-profile-name visualization-deployment-s3-profile-25db717
 
-aws iam delete-instance-profile --instance-profile-name hpds-deployment-s3-profile-a-c200e89
-aws iam delete-instance-profile --instance-profile-name httpd-deployment-s3-profile-a-c200e89
-aws iam delete-instance-profile --instance-profile-name wildfly-deployment-s3-profile-a-c200e89
-aws iam delete-instance-profile --instance-profile-name dictionary-deployment-s3-profile-a-c200e89
-aws iam delete-instance-profile --instance-profile-name visualization-deployment-s3-profile-a-c200e89
+#aws iam delete-instance-profile --instance-profile-name hpds-deployment-s3-profile-a-7df1843
+#aws iam delete-instance-profile --instance-profile-name httpd-deployment-s3-profile-a-7df1843
+#aws iam delete-instance-profile --instance-profile-name wildfly-deployment-s3-profile-a-7df1843
+#aws iam delete-instance-profile --instance-profile-name dictionary-deployment-s3-profile-a-7df1843
+#aws iam delete-instance-profile --instance-profile-name visualization-deployment-s3-profile-a-7df1843
+
+aws iam delete-instance-profile --instance-profile-name auth-hpds-deployment-s3-profile-a-29543d0
+aws iam delete-instance-profile --instance-profile-name auth-hpds-deployment-s3-profile-b-11749b3
+aws iam delete-instance-profile --instance-profile-name auth-hpds-deployment-s3-profile-b-523ccaf
+aws iam delete-instance-profile --instance-profile-name hpds-deployment-s3-profile-a-3b466aa
+aws iam delete-instance-profile --instance-profile-name hpds-deployment-s3-profile-b-338b5c6
+aws iam delete-instance-profile --instance-profile-name hpds-deployment-s3-profile-b-98e6b37
+aws iam delete-instance-profile --instance-profile-name hpds-deployment-s3-profile-b-a19cbe8
+aws iam delete-instance-profile --instance-profile-name hpds-deployment-s3-profile-b-a2bdc3e
+aws iam delete-instance-profile --instance-profile-name hpds-deployment-s3-profile-b-ae69315
+aws iam delete-instance-profile --instance-profile-name httpd-deployment-s3-profile-a-29543d0
+aws iam delete-instance-profile --instance-profile-name httpd-deployment-s3-profile-a-3b466aa
+aws iam delete-instance-profile --instance-profile-name httpd-deployment-s3-profile-b-11749b3
+aws iam delete-instance-profile --instance-profile-name httpd-deployment-s3-profile-b-338b5c6
+aws iam delete-instance-profile --instance-profile-name httpd-deployment-s3-profile-b-523ccaf
+aws iam delete-instance-profile --instance-profile-name httpd-deployment-s3-profile-b-98e6b37
+aws iam delete-instance-profile --instance-profile-name httpd-deployment-s3-profile-b-a19cbe8
+aws iam delete-instance-profile --instance-profile-name httpd-deployment-s3-profile-b-a2bdc3e
+aws iam delete-instance-profile --instance-profile-name httpd-deployment-s3-profile-b-ae69315
+aws iam delete-instance-profile --instance-profile-name open-hpds-deployment-s3-profile-a-29543d0
+aws iam delete-instance-profile --instance-profile-name open-hpds-deployment-s3-profile-b-11749b3
+aws iam delete-instance-profile --instance-profile-name open-hpds-deployment-s3-profile-b-523ccaf
+aws iam delete-instance-profile --instance-profile-name wildfly-deployment-s3-profile-a-29543d0
+aws iam delete-instance-profile --instance-profile-name wildfly-deployment-s3-profile-a-3b466aa
+aws iam delete-instance-profile --instance-profile-name wildfly-deployment-s3-profile-b-11749b3
+aws iam delete-instance-profile --instance-profile-name wildfly-deployment-s3-profile-b-338b5c6
+aws iam delete-instance-profile --instance-profile-name wildfly-deployment-s3-profile-b-523ccaf
+aws iam delete-instance-profile --instance-profile-name wildfly-deployment-s3-profile-b-98e6b37
+aws iam delete-instance-profile --instance-profile-name wildfly-deployment-s3-profile-b-a19cbe8
+aws iam delete-instance-profile --instance-profile-name wildfly-deployment-s3-profile-b-a2bdc3e
+aws iam delete-instance-profile --instance-profile-name wildfly-deployment-s3-profile-b-ae69315
 
 echo
 echo
-echo
-echo
+echo 
+echo 
 
 aws iam list-instance-profiles
 
 unset AWS_ACCESS_KEY_ID
 unset AWS_SECRET_ACCESS_KEY
 unset AWS_SESSION_TOKEN</command>
+      <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>
   <buildWrappers>
-    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.38">
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.40">
       <deleteDirs>false</deleteDirs>
       <cleanupParameter></cleanupParameter>
       <externalDelete></externalDelete>

@@ -28,6 +28,10 @@
           <defaultValue>MANUAL_RUN</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>source_dictionary_s3_object_key</name>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
@@ -36,7 +40,7 @@
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
         <url>https://github.com/hms-dbmi/pic-sure-search-prototype</url>
-        <credentialsId>ae99aaad-e5b0-4f64-b1b3-3af57e64fccc</credentialsId>
+        <credentialsId>c1cbb1df-9da8-4f3f-85b9-8de0b9685008</credentialsId>
       </hudson.plugins.git.UserRemoteConfig>
     </userRemoteConfigs>
     <branches>
@@ -70,7 +74,7 @@ GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
 
 cd tagging
 
-aws s3 --sse=AES256 cp s3://${stack_s3_bucket}/data/${destination_bucket_hash}/dictionary.javabin.tar.gz . 
+aws s3 --sse=AES256 cp ${source_dictionary_s3_object_key} dictionary.javabin.tar.gz 
 
 docker build -t hms-dbmi/pic-sure-hpds-dictionary-resource:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} -f Dockerfile_hpds_dictionary_resource .
 
