@@ -4,11 +4,15 @@
   <description></description>
   <keepDependencies>false</keepDependencies>
   <properties>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.33">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
     <hudson.model.ParametersDefinitionProperty>
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
           <name>managed_inputs</name>
-          <defaultValue>s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/Managed_Inputs.csv</defaultValue>
+          <defaultValue>s3://avillach-73-bdcatalyst-etl/general/resources/Managed_Inputs.csv</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
@@ -19,7 +23,7 @@
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
         <url>https://github.com/hms-dbmi/pic-sure-metadata-curation</url>
-        <credentialsId>c1cbb1df-9da8-4f3f-85b9-8de0b9685008</credentialsId>
+        <credentialsId>ae99aaad-e5b0-4f64-b1b3-3af57e64fccc</credentialsId>
       </hudson.plugins.git.UserRemoteConfig>
     </userRemoteConfigs>
     <branches>
@@ -49,7 +53,7 @@ export AWS_SESSION_TOKEN=`grep SessionToken assume-role-output.txt | cut -d &apo
 
 aws s3 cp ${managed_inputs} .
 
-awk -F, &apos;{print $1&quot;,&quot;$2&quot;,&quot;$3&quot;,&quot;$8&quot;,&quot;$9}&apos; Managed_Inputs.csv &gt; inputs.csv
+csvcut -c 1,2,3,8,9 Managed_Inputs.csv &gt; inputs.csv
 
 cat	inputs.csv
 
@@ -60,8 +64,9 @@ IFS=&apos;,&apos;
 while read abv_name stdy_id stdy_type data_ready data_processed
 do
   if [[ &quot;${data_ready,,}&quot; == &quot;yes&quot; ]]; then
-
-     if [ ${stdy_type,,} == &quot;biolincc&quot; ] || [ ${stdy_type,,} == &quot;other&quot; ] || [ ${stdy_type,,} == &quot;orchid&quot; ]; then       
+	 if [ ${abv_name,,} == &quot;red_coral&quot; ]; then       
+        aws s3 cp redcoral/output/ s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/${stdy_id}/metadata/ --recursive --exclude &quot;*&quot; --include &quot;*.json&quot;
+     elif [ ${stdy_type,,} == &quot;c3po&quot; ] || [ ${stdy_type,,} == &quot;biolincc&quot; ] || [ ${stdy_type,,} == &quot;other&quot; ] || [ ${stdy_type,,} == &quot;orchid&quot; ]; then       
         aws s3 cp ${abv_name,,}/output/ s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/${stdy_id}/metadata/ --recursive --exclude &quot;*&quot; --include &quot;*.json&quot;
      fi
   else 
@@ -69,7 +74,9 @@ do
   fi
 done &lt; inputs.csv
 
-aws s3 cp redcoral/output/ s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/phs002363/metadata/ --recursive --exclude &quot;*&quot; --include &quot;*.json&quot;
+aws s3 cp dcc_harmonized/output/ s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/hrmn/metadata/ --recursive --exclude &quot;*&quot; --include &quot;*.json&quot;
+
+#aws s3 cp redcoral/output/ s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/phs002363/metadata/ --recursive --exclude &quot;*&quot; --include &quot;*.json&quot;
 
 
 </command>

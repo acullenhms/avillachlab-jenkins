@@ -27,7 +27,7 @@
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/ETLToolSuite-MissionControl</url>
+        <url>https://github.com/hms-dbmi/ETL-MissionControl-dbgap-submodule</url>
       </hudson.plugins.git.UserRemoteConfig>
     </userRemoteConfigs>
     <branches>
@@ -49,67 +49,46 @@
     <hudson.tasks.Shell>
       <command>#!/bin/bash
 
-### assume etl role
-aws sts assume-role --duration-seconds 900 --role-arn arn:aws:iam::736265540791:role/dbgap-etl --role-session-name &quot;s3-test&quot; &gt; assume-role-output.txt
-
-export AWS_ACCESS_KEY_ID=`grep AccessKeyId assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
-export AWS_SECRET_ACCESS_KEY=`grep SecretAccessKey assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
-export AWS_SESSION_TOKEN=`grep SessionToken assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
-
-mkdir data
-mkdir completed
-mkdir hierarchies
-mkdir processing
-mkdir mappings
-mkdir resources
-mkdir reports
-
-find data/ -type f -exec rm -rf {} \;
-find data/ -type d -exec rm -rf {} \;
-find processing/ -type f -exec rm -rf {} \;
-find completed/ -type f -exec rm -rf {} \;
-find mappings/ -type f -exec rm -rf {} \;
-find resources/ -type f -exec rm -rf {} \;
-
-
-rm -rf pic-sure-hpds/
-
-aws s3 cp ${managed_inputs} data/
-
-aws s3 cp ${metadata_file} data/metadata.json
-
-unset AWS_ACCESS_KEY_ID
-unset AWS_SECRET_ACCESS_KEY
-unset AWS_SESSION_TOKEN
-
-
-find data/ -type f -exec rm -rf {} \;
-find data/ -type d -exec rm -rf {} \;
-find processing/ -type f -exec rm -rf {} \;
-find completed/ -type f -exec rm -rf {} \;
-find mappings/ -type f -exec rm -rf {} \;
-find resources/ -type f -exec rm -rf {} \;
-### assume etl role
 aws sts assume-role --duration-seconds 3600 --role-arn arn:aws:iam::736265540791:role/dbgap-etl --role-session-name &quot;s3-test&quot; &gt; assume-role-output.txt
 
 export AWS_ACCESS_KEY_ID=`grep AccessKeyId assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
 export AWS_SECRET_ACCESS_KEY=`grep SecretAccessKey assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
 export AWS_SESSION_TOKEN=`grep SessionToken assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
 
-aws s3 cp s3://avillach-73-bdcatalyst-etl/general/data/ data/ --recursive
-aws s3 cp s3://avillach-73-bdcatalyst-etl/general/globalvars/study_consents/ data/ --recursive
-aws s3 cp s3://avillach-73-bdcatalyst-etl/general/mappings/mapping.postrootnodes.csv mappings/mapping.csv
+aws s3 cp ${managed_inputs} .
 
-cat data/studies_consents_mapping.csv &gt;&gt; mappings/mapping.csv
+csvcut -c 1,2,3,8,9 Managed_Inputs.csv &gt; inputs.csv
 
-aws s3 cp s3://avillach-73-bdcatalyst-etl/general/resources/job.config resources/
+cat Managed_Inputs.csv
+# Generate mappings
+cat	inputs.csv
 
-java -jar GenerateAllConcepts.jar -propertiesfile resources/job.config
+IFS=&apos;,&apos;
+[ ! -f inputs.csv ]
+while read abv_name stdy_id stdy_type data_ready data_processed
+do
+  if [[ &quot;${data_ready,,}&quot; == &quot;yes&quot; ]]; then
 
-aws s3 cp completed/GLOBAL_allConcepts.csv s3://avillach-73-bdcatalyst-etl/general/completed/ </command>
+	  if [[ ${stdy_type,,} == &quot;topmed&quot; ]] || [[ ${stdy_type,,} == &quot;parent&quot; ]]; then
+        echo &quot;downloading metadata for $stdy_id&quot;
+        aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/rawData/ s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/${stdy_id}/metadata/ --recursive --exclude &quot;*&quot; --include &quot;${stdy_id}*.xml&quot; --quiet
+
+
+      fi
+   else 
+      echo &quot;$abv_name not ready for processing&quot;
+   fi
+done &lt; inputs.csv</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>
-  <buildWrappers/>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.40">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+  </buildWrappers>
 </project>

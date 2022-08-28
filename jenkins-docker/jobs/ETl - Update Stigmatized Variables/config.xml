@@ -8,23 +8,16 @@
       <autoRebuild>false</autoRebuild>
       <rebuildDisabled>false</rebuildDisabled>
     </com.sonyericsson.rebuild.RebuildSettings>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>S3_DATA_SET_TAR_NAME</name>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.10.3">
-    <configVersion>2</configVersion>
-    <userRemoteConfigs>
-      <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/pic-sure-hpds</url>
-      </hudson.plugins.git.UserRemoteConfig>
-    </userRemoteConfigs>
-    <branches>
-      <hudson.plugins.git.BranchSpec>
-        <name>als-3118_adding_quotes_to_values_list</name>
-      </hudson.plugins.git.BranchSpec>
-    </branches>
-    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-    <submoduleCfg class="empty-list"/>
-    <extensions/>
-  </scm>
+  <scm class="hudson.scm.NullSCM"/>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
@@ -32,31 +25,8 @@
   <triggers/>
   <concurrentBuild>false</concurrentBuild>
   <builders>
-    <hudson.tasks.Maven>
-      <targets>clean install -DskipTests</targets>
-      <mavenName>Maven 3.6.3</mavenName>
-      <usePrivateRepository>false</usePrivateRepository>
-      <settings class="jenkins.mvn.DefaultSettingsProvider"/>
-      <globalSettings class="jenkins.mvn.DefaultGlobalSettingsProvider"/>
-      <injectBuildVariables>false</injectBuildVariables>
-    </hudson.tasks.Maven>
     <hudson.tasks.Shell>
       <command>#!/bin/bash
-
-GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
-GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
-cd &quot;${WORKSPACE}&quot;/docker/pic-sure-hpds-etl
-docker build -t hms-dbmi/pic-sure-hpds-etl:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
-
-mkdir -p &quot;${WORKSPACE}&quot;/docker_image_output
-cd &quot;${WORKSPACE}&quot;/docker_image_output
-docker save hms-dbmi/pic-sure-hpds-etl:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} | gzip &gt; pic-sure-hpds-etl.tar.gz
-
-HPDS_ETL_IMAGE=`docker load &lt; ./pic-sure-hpds-etl.tar.gz  | cut -d &apos; &apos; -f 3`
-
-echo ${HPDS_ETL_IMAGE}
-
-cd &quot;${WORKSPACE}&quot;
 
 # Managed Inputs
 ## Data Analyzer javabin creation
@@ -65,17 +35,24 @@ export AWS_ACCESS_KEY_ID=`grep AccessKeyId assume-role-output.txt | cut -d &apos
 export AWS_SECRET_ACCESS_KEY=`grep SecretAccessKey assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
 export AWS_SESSION_TOKEN=`grep SessionToken assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
 
-cd &quot;${WORKSPACE}&quot;/docker/pic-sure-hpds-etl/
+ts=$(date &apos;+%m-%d-%y&apos;)
 
-aws s3 cp s3://avillach-73-bdcatalyst-etl/general/completed/allConcepts_data_analyzer.csv hpds/allConcepts.csv
+#aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/biodatacatalyst_javabins_data_analyzer_${ts}.tar.gz s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/${S3_DATA_SET_TAR_NAME} .
 
-cat /dev/urandom | tr -dc &apos;a-zA-Z0-9&apos; | fold -w 32 | head -n 1 &gt; hpds/encryption_key
+tar zxf ${S3_DATA_SET_TAR_NAME}
 
-#aws s3 cp s3://avillach-73-bdcatalyst-etl/general/resources/docker-compose-csv-loader.yml .
+unset AWS_ACCESS_KEY_ID
+unset AWS_SECRET_ACCESS_KEY
+unset AWS_SESSION_TOKEN
 
-docker run -i -v &quot;$(pwd)&quot;/hpds:/opt/local/hpds -v &quot;$(pwd)&quot;/hpds:/opt/local/phenocube -eNO_ROLLUP=NO_ROLLUP -eHEAPSIZE=4096 -eLOADER_NAME=CSVLoader ${HPDS_ETL_IMAGE}
+aws sts assume-role --duration-seconds 1800 --role-arn arn:aws:iam::736265540791:role/dbgap-etl --role-session-name &quot;s3-test&quot; &gt; assume-role-output.txt
+export AWS_ACCESS_KEY_ID=`grep AccessKeyId assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+export AWS_SECRET_ACCESS_KEY=`grep SecretAccessKey assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+export AWS_SESSION_TOKEN=`grep SessionToken assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
 
-#docker-compose -f docker-compose-csv-loader.yml up
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/data/conceptsToRemove.txt .
+
 unset AWS_ACCESS_KEY_ID
 unset AWS_SECRET_ACCESS_KEY
 unset AWS_SESSION_TOKEN
@@ -86,24 +63,16 @@ export AWS_ACCESS_KEY_ID=`grep AccessKeyId assume-role-output.txt | cut -d &apos
 export AWS_SECRET_ACCESS_KEY=`grep SecretAccessKey assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
 export AWS_SESSION_TOKEN=`grep SessionToken assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
 
-
-cd hpds/
-
-ts=$(date &apos;+%m-%d-%y&apos;)
-
-aws s3 cp s3://avillach-73-bdcatalyst-etl/general/data/metadata_new_search.json metadata.json
-
-aws s3 cp s3://avillach-73-bdcatalyst-etl/general/data/conceptsToRemove.txt .
-
 tar zcf biodatacatalyst_javabins_data_analyzer_${ts}.tar.gz columnMeta.csv *.javabin encryption_key metadata.json conceptsToRemove.txt
 
 aws s3 cp biodatacatalyst_javabins_data_analyzer_${ts}.tar.gz s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/
 
-aws s3 cp columnMeta.csv s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/columnMeta/columnMeta.csv
-
 unset AWS_ACCESS_KEY_ID
 unset AWS_SECRET_ACCESS_KEY
 unset AWS_SESSION_TOKEN
+
+#aws s3 cp columnMeta.csv s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/columnMeta/columnMeta.csv
+
 </command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>

@@ -3,7 +3,12 @@
   <actions/>
   <description></description>
   <keepDependencies>false</keepDependencies>
-  <properties/>
+  <properties>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.33">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+  </properties>
   <scm class="hudson.plugins.git.GitSCM" plugin="git@4.10.3">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
@@ -49,7 +54,14 @@ git clone https://github.com/UW-GAC/topmed-dcc-harmonized-phenotypes
 
 find topmed-dcc-harmonized-phenotypes/harmonized-variable-documentation/ -type f -name &quot;*.json&quot; -exec cp {} ./dict/ \;
 
-aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/rawData/ processing/ --recursive
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/dataBuilder/data/topmed_dcc_harmonized_atherosclerosis_v1/ processing/ --recursive
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/dataBuilder/data/topmed_dcc_harmonized_baseline_common_covariates_v2/ processing/ --recursive
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/dataBuilder/data/topmed_dcc_harmonized_blood_cell_count_v3/ processing/ --recursive
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/dataBuilder/data/topmed_dcc_harmonized_blood_pressure_v1/ processing/ --recursive
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/dataBuilder/data/topmed_dcc_harmonized_demographic_v3/ processing/ --recursive
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/dataBuilder/data/topmed_dcc_harmonized_lipids_v3/ processing/ --recursive
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/dataBuilder/data/topmed_dcc_harmonized_vte_v1/ processing/ --recursive
+
 
 java -jar jars/HarmonizedMappingGenerator.jar
 

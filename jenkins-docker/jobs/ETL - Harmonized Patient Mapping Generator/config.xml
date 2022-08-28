@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>Need to have patients sequenced before running this job</description>
+  <description></description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.33">
@@ -18,18 +18,6 @@
         <hudson.model.StringParameterDefinition>
           <name>metadata_file</name>
           <defaultValue>s3://avillach-73-bdcatalyst-etl/general/data/metadata.json</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>abv_name</name>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>consentid</name>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>phs_accession</name>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
@@ -72,48 +60,65 @@ mkdir data
 mkdir completed
 mkdir hierarchies
 mkdir processing
+mkdir mappings
+mkdir resources
+mkdir reports
 
 find data/ -type f -exec rm -rf {} \;
+find data/ -type d -exec rm -rf {} \;
 find processing/ -type f -exec rm -rf {} \;
 find completed/ -type f -exec rm -rf {} \;
+find mappings/ -type f -exec rm -rf {} \;
+find resources/ -type f -exec rm -rf {} \;
+find reports/ -type f -exec rm -rf {} \;
+
 rm -rf pic-sure-hpds/
 
-aws s3 cp ${managed_inputs} .
+aws s3 cp ${managed_inputs} data/
 
-unset AWS_ACCESS_KEY_ID
-unset AWS_SECRET_ACCESS_KEY
-unset AWS_SESSION_TOKEN
+aws s3 cp ${metadata_file} data/metadata.json
 
 csvcut -c 1,2,3,8,9 data/Managed_Inputs.csv &gt; inputs.csv
 
 # Generate mappings
-#cat	inputs.csv
-#IFS=&apos;,&apos;
-#[ ! -f inputs.csv ]
-#while read abv_name stdy_id stdy_type data_ready data_processed
-#do
-#  if [[ &quot;${data_ready,,}&quot; == &quot;yes&quot; ]]; then
+cat	inputs.csv
+IFS=&apos;,&apos;
+[ ! -f inputs.csv ]
+while read abv_name stdy_id stdy_type data_ready data_processed
+do
+  if [[ &quot;${data_ready,,}&quot; == &quot;yes&quot; ]]; then
 
-#	  if [ ${stdy_type,,} == &quot;biolincc&quot; ] || [ ${stdy_type,,} == &quot;other&quot; ] || [ ${stdy_type,,} == &quot;orchid&quot; ]; then
+	 if [[ ${stdy_type,,} == &quot;topmed&quot; ]] || [[ ${stdy_type,,} == &quot;parent&quot; ]]; then
+     	### assume etl role
 
-        aws sts assume-role --duration-seconds 3600 --role-arn arn:aws:iam::736265540791:role/dbgap-etl --role-session-name &quot;s3-test&quot; &gt; assume-role-output.txt
+		aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/data/${abv_name^^}_PatientMapping.v2.csv data/  
         
-        export AWS_ACCESS_KEY_ID=`grep AccessKeyId assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
-        export AWS_SECRET_ACCESS_KEY=`grep SecretAccessKey assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
-        export AWS_SESSION_TOKEN=`grep SessionToken assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
-        
-        aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/data/${abv_name^^}_PatientMapping.v2.csv data/
-                
-        java -jar jars/GenericGlobalConceptsGenerator.jar -rootnode ${phs_accession} -patientmappingfile data/${abv_name^^}_PatientMapping.v2.csv -trialid ${abv_name^^} -consentid ${consentid} -accession ${phs_accession}
-        
-        aws s3 cp completed/${abv_name^^}_GlobalVars.csv s3://avillach-73-bdcatalyst-etl/${abv_name^^}/completed/ 
+        aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/rawData/ data/ --recursive --exclude &quot;*&quot; --include &quot;${stdy_id,,}*MULTI.txt&quot; --include &quot;${stdy_id,,}*.Multi.txt&quot; --include &quot;${stdy_id,,}*.multi.txt&quot;
+		
+        aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/decoded_data/ data/decoded/ --recursive --exclude &quot;*&quot; --include &quot;${stdy_id,,}*MULTI.txt&quot; --include &quot;${stdy_id,,}*.Multi.txt&quot; --include &quot;${stdy_id,,}*.multi.txt&quot;
+	 fi
+  fi
+done  &lt; inputs.csv
 
-#	 fi
-#  fi
-#done  &lt; inputs.csv</command>
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/decoded_data/ data/ --recursive
+
+java -jar jars/HarmonizedPatientMappingGenerator.jar
+
+aws s3 cp completed/HRMN_PatientMapping.v2.csv s3://avillach-73-bdcatalyst-etl/hrmn/completed/HRMN_PatientMapping.v2.csv
+
+unset AWS_ACCESS_KEY_ID
+unset AWS_SECRET_ACCESS_KEY
+unset AWS_SESSION_TOKEN</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>
-  <buildWrappers/>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.40">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+  </buildWrappers>
 </project>

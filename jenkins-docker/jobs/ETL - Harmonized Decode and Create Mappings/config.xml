@@ -8,20 +8,6 @@
       <autoRebuild>false</autoRebuild>
       <rebuildDisabled>false</rebuildDisabled>
     </com.sonyericsson.rebuild.RebuildSettings>
-    <hudson.model.ParametersDefinitionProperty>
-      <parameterDefinitions>
-        <hudson.model.StringParameterDefinition>
-          <name>managed_inputs</name>
-          <defaultValue>s3://avillach-73-bdcatalyst-etl/general/resources/Managed_Inputs.csv</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>metadata_file</name>
-          <defaultValue>s3://avillach-73-bdcatalyst-etl/general/data/metadata_new_search.json</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-      </parameterDefinitions>
-    </hudson.model.ParametersDefinitionProperty>
   </properties>
   <scm class="hudson.plugins.git.GitSCM" plugin="git@4.10.3">
     <configVersion>2</configVersion>
@@ -52,40 +38,43 @@
 # Managed Inputs
 
 aws sts assume-role --duration-seconds 3600 --role-arn arn:aws:iam::736265540791:role/dbgap-etl --role-session-name &quot;s3-test&quot; &gt; assume-role-output.txt
-
 export AWS_ACCESS_KEY_ID=`grep AccessKeyId assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
 export AWS_SECRET_ACCESS_KEY=`grep SecretAccessKey assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
 export AWS_SESSION_TOKEN=`grep SessionToken assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
 
+mkdir mappings
 mkdir data
-mkdir completed
-mkdir hierarchies
 mkdir processing
+mkdir completed
+mkdir dict
+mkdir resources
+mkdir reports
 
-find data/ -type f -exec rm -rf {} \;
-find processing/ -type f -exec rm -rf {} \;
-find completed -type f -exec rm -rf {} \;
+git clone https://github.com/UW-GAC/topmed-dcc-harmonized-phenotypes
 
-aws s3 cp ${managed_inputs} data/
+find topmed-dcc-harmonized-phenotypes/harmonized-variable-documentation/ -type f -name &quot;*.json&quot; -exec cp {} ./dict/ \;
 
-aws s3 cp ${metadata_file} data/
-
-aws s3 cp s3://avillach-73-bdcatalyst-etl/general/completed/allConcepts_data_analyzer.csv data/allConcepts.csv
-aws s3 cp s3://avillach-73-bdcatalyst-etl/general/completed/GLOBAL_allConcepts_merged.csv data/GLOBAL_allConcepts.csv --quiet
-
-unset AWS_ACCESS_KEY_ID
-unset AWS_SECRET_ACCESS_KEY
-unset AWS_SESSION_TOKEN
-
-java -jar jars/BDCValidations.jar
-
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/dataBuilder/data/topmed_dcc_harmonized_atherosclerosis_v1/ processing/ --recursive --exclude &quot;*&quot; --include &quot;*.txt&quot;
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/dataBuilder/data/topmed_dcc_harmonized_baseline_common_covariates_v2/ processing/ --recursive --exclude &quot;*&quot; --include &quot;*.txt&quot;
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/dataBuilder/data/topmed_dcc_harmonized_blood_cell_count_v3/ processing/ --recursive --exclude &quot;*&quot; --include &quot;*.txt&quot;
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/dataBuilder/data/topmed_dcc_harmonized_blood_pressure_v1/ processing/ --recursive --exclude &quot;*&quot; --include &quot;*.txt&quot;
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/dataBuilder/data/topmed_dcc_harmonized_demographic_v3/ processing/ --recursive --exclude &quot;*&quot; --include &quot;*.txt&quot;
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/dataBuilder/data/topmed_dcc_harmonized_lipids_v3/ processing/ --recursive --exclude &quot;*&quot; --include &quot;*.txt&quot;
+aws s3 cp s3://avillach-73-bdcatalyst-etl/hrmn/dataBuilder/data/topmed_dcc_harmonized_vte_v1/ processing/ --recursive --exclude &quot;*&quot; --include &quot;*.txt&quot;
 
 
-
+java -jar jars/HarmonizedMappingGenerator.jar
 </command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>
-  <buildWrappers/>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.40">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+  </buildWrappers>
 </project>

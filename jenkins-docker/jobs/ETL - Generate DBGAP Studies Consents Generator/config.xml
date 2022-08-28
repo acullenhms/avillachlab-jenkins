@@ -1,7 +1,9 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description></description>
+  <description>This job will generate Global allConcepts file that contains all global vars.&#xd;
+&#xd;
+global vars are identified by first character being an underscore.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.33">
@@ -13,11 +15,6 @@
         <hudson.model.StringParameterDefinition>
           <name>managed_inputs</name>
           <defaultValue>s3://avillach-73-bdcatalyst-etl/general/resources/Managed_Inputs.csv</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>metadata_file</name>
-          <defaultValue>s3://avillach-73-bdcatalyst-etl/general/data/metadata_new_search.json</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
@@ -49,9 +46,9 @@
     <hudson.tasks.Shell>
       <command>#!/bin/bash
 
-### assume etl role
-aws sts assume-role --duration-seconds 900 --role-arn arn:aws:iam::736265540791:role/dbgap-etl --role-session-name &quot;s3-test&quot; &gt; assume-role-output.txt
+# Managed Inputs
 
+aws sts assume-role --duration-seconds 3600 --role-arn arn:aws:iam::736265540791:role/dbgap-etl --role-session-name &quot;s3-test&quot; &gt; assume-role-output.txt
 export AWS_ACCESS_KEY_ID=`grep AccessKeyId assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
 export AWS_SECRET_ACCESS_KEY=`grep SecretAccessKey assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
 export AWS_SESSION_TOKEN=`grep SessionToken assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
@@ -61,21 +58,20 @@ mkdir completed
 mkdir hierarchies
 mkdir processing
 
-find data/ -type f -exec rm -rf {} \;
+find data/ -type f -name &quot;phs*&quot; -exec rm -rf {} \;
 find processing/ -type f -exec rm -rf {} \;
-find completed/ -type f -exec rm -rf {} \;
-rm -rf pic-sure-hpds/
+find completed -type f -exec rm -rf {} \;
 
 aws s3 cp ${managed_inputs} data/
 
-aws s3 cp ${metadata_file} data/metadata.json
+csvcut -c 1,2,3,8,9 data/Managed_Inputs.csv &gt; inputs.csv
 
+rm -rf uniq_ids.txt
+
+echo &quot;testing&quot;
 unset AWS_ACCESS_KEY_ID
 unset AWS_SECRET_ACCESS_KEY
 unset AWS_SESSION_TOKEN
-
-csvcut -c 1,2,3,8,9 data/Managed_Inputs.csv &gt; inputs.csv
-
 # Generate mappings
 cat	inputs.csv
 IFS=&apos;,&apos;
@@ -84,36 +80,44 @@ while read abv_name stdy_id stdy_type data_ready data_processed
 do
   if [[ &quot;${data_ready,,}&quot; == &quot;yes&quot; ]]; then
 
-	  #if [[ ${stdy_type,,} == &quot;topmed&quot; ]] || [[ ${stdy_type,,} == &quot;parent&quot; ]]; then
-
-        ### assume etl role
+	  if [[ ${stdy_type,,} == &quot;topmed&quot; ]] || [[ ${stdy_type,,} == &quot;parent&quot; ]]; then
         aws sts assume-role --duration-seconds 3600 --role-arn arn:aws:iam::736265540791:role/dbgap-etl --role-session-name &quot;s3-test&quot; &gt; assume-role-output.txt
         
         export AWS_ACCESS_KEY_ID=`grep AccessKeyId assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
         export AWS_SECRET_ACCESS_KEY=`grep SecretAccessKey assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
         export AWS_SESSION_TOKEN=`grep SessionToken assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
-  
-        aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/rawData/ data/raw/ --recursive --quiet
+         
+        aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/rawData/ data/raw/ --recursive --exclude &quot;*&quot; --include &quot;${stdy_id}*subject.multi*&quot; --include &quot;${stdy_id}*Subject.Multi*&quot; --include &quot;${stdy_id}*Subject.MULTI*&quot; --quiet
         
-        aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/rawData/ data/raw/ --recursive  --quiet
-
-        aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/decoded_data/ data/decoded/ --recursive --exclude &quot;*&quot; --include &quot;${stdy_id}*subject.multi*&quot; --include &quot;${stdy_id}*Subject.Multi*&quot; --include &quot;${stdy_id}*Subject.MULTI*&quot; 
+        aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/rawData/ data/raw/ --recursive --exclude &quot;*&quot; --include &quot;${stdy_id}*sample.multi*&quot; --include &quot;${stdy_id}*Sample.Multi*&quot; --include &quot;${stdy_id}*Sample.MULTI*&quot; --quiet
         
-        aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/decoded_data/ data/decoded/ --recursive --exclude &quot;*&quot; --include &quot;${stdy_id}*sample.multi*&quot; --include &quot;${stdy_id}*Sample.Multi*&quot; --include &quot;${stdy_id}*Sample.MULTI*&quot; 
-  
-        #find data/ -type f -exec rm -rf {} \;
+        aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/decoded_data/ data/decoded/ --recursive --exclude &quot;*&quot; --include &quot;${stdy_id}*subject.multi*&quot; --include &quot;${stdy_id}*Subject.Multi*&quot; --include &quot;${stdy_id}*Subject.MULTI*&quot; --quiet
         
-        ### remove role for next iteration
+        aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/decoded_data/ data/decoded/ --recursive --exclude &quot;*&quot; --include &quot;${stdy_id}*sample.multi*&quot; --include &quot;${stdy_id}*Sample.Multi*&quot; --include &quot;${stdy_id}*Sample.MULTI*&quot; --quiet
+        
+        
+        aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/data/${abv_name^^}_PatientMapping.v2.csv data/
         unset AWS_ACCESS_KEY_ID
         unset AWS_SECRET_ACCESS_KEY
         unset AWS_SESSION_TOKEN
-	 #fi
-  fi
-done  &lt; inputs.csv
+      fi
+   else 
+      echo &quot;$abv_name not ready for processing&quot;
+   fi
+done &lt; inputs.csv
 
-java -jar jars/JsonMetadataGenerator2.jar
+java -jar jars/StudiesConsentsGenerator.jar
 
-#aws s3 cp completed/metadata.json s3://avillach-73-bdcatalyst-etl/general/data/metadata_new_search.json</command>
+aws sts assume-role --duration-seconds 3600 --role-arn arn:aws:iam::736265540791:role/dbgap-etl --role-session-name &quot;s3-test&quot; &gt; assume-role-output.txt
+export AWS_ACCESS_KEY_ID=`grep AccessKeyId assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+export AWS_SECRET_ACCESS_KEY=`grep SecretAccessKey assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+export AWS_SESSION_TOKEN=`grep SessionToken assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+         
+aws s3 cp completed/ s3://avillach-73-bdcatalyst-etl/general/globalvars/study_consents/ --recursive
+
+unset AWS_ACCESS_KEY_ID
+unset AWS_SECRET_ACCESS_KEY
+unset AWS_SESSION_TOKEN</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

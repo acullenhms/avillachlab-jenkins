@@ -9,9 +9,16 @@
       <options/>
     </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
   </actions>
-  <description></description>
+  <description>This pipeline should be run when introducing a DBGap Compliant Study or updating a new Version.&#xd;
+&#xd;
+Prerequisite:&#xd;
+BDC Managed Inputs should be updated.&#xd;
+New Studies need to be decoded and be patient ids should be sequenced.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
+    <org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty>
+      <abortPrevious>false</abortPrevious>
+    </org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty>
     <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.33">
       <autoRebuild>false</autoRebuild>
       <rebuildDisabled>false</rebuildDisabled>
@@ -22,28 +29,34 @@
 pipeline {
     agent any 
     stages {
-        stage(&apos;merge global concepts&apos;) { 
+        stage(&apos;Create mapping file and Generate All Concepts for DBGap Studies Not processed yet&apos;) { 
             steps {
                 script {
-                    build job: &apos;ETL - Merge Global Concepts&apos;
-                }
-            }
-        }
-        stage(&apos;merge and generate javabin&apos;) { 
-            steps {
-                script {
-                    build job: &apos;ETL - All Concept Data Merge with Data Analyzer&apos;
+                    build job: &apos;ETL - Generate DBGAP Mapping Files&apos;
                     
                 }
                 script {
-                    build job: &apos;ETL - Generate Phenotype Javabins Data Analyzer&apos;
+                    build job: &apos;ETL - Generate DBGAP All Concepts with Data Type Analyzer&apos;
                 }
             }
         }
-        stage(&apos;Create dictionary javabin&apos;) { 
+        stage(&apos;Generate Global Variables&apos;) { 
             steps {
                 script {
-                    build job: &apos;ETL - IMPORT HPDS DICTIONARY DATA&apos;
+                    build job: &apos;ETL - Generate DBGAP Global Variables&apos;
+                }
+                script {
+                    build job: &apos;ETL - Generate DBGAP Studies Consents Generator&apos;
+                }
+                script {
+                    build job: &apos;ETL - Generate DBGAP Global All Concepts&apos;
+                }
+            }
+        }
+        stage(&apos;Importing DBGap Data Dictionaries&apos;) {
+            steps {
+                script {
+                    build job: &apos;ETL - Import DBGAP Dictionaries to s3&apos;
                 }
             }
         }

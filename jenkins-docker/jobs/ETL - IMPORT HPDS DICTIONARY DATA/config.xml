@@ -1,0 +1,215 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Imports data dictionaries into HPDS format.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.33">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>destination_bucket_hash</name>
+          <description>the git hash of the commit that changed the data set</description>
+          <defaultValue>MANUAL_RUN_FULL_DATA_SET</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>pipeline_build_id</name>
+          <defaultValue>MANUAL_RUN_FULL_DATA_SET</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>managed_inputs</name>
+          <defaultValue>s3://avillach-73-bdcatalyst-etl/general/resources/Managed_Inputs.csv</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>arn-etl-role</name>
+          <defaultValue>arn:aws:iam::736265540791:role/dbgap-etl</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>git_hash</name>
+          <defaultValue>*/master</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.10.3">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/pic-sure-search-prototype</url>
+        <credentialsId>ae99aaad-e5b0-4f64-b1b3-3af57e64fccc</credentialsId>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>${git_hash}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="empty-list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Maven>
+      <targets>clean install -DskipTests</targets>
+      <mavenName>Maven 3.6.3</mavenName>
+      <pom>tagging/pom.xml</pom>
+      <usePrivateRepository>false</usePrivateRepository>
+      <settings class="jenkins.mvn.DefaultSettingsProvider"/>
+      <globalSettings class="jenkins.mvn.DefaultGlobalSettingsProvider"/>
+      <injectBuildVariables>false</injectBuildVariables>
+    </hudson.tasks.Maven>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+######## adding pic-sure-resource build job to this
+### Load Dictionary ETL Image
+#aws s3 --sse=AES256 cp s3://${stack_s3_bucket}/releases/jenkins_pipeline_build_${pipeline_build_id}/pic-sure-hpds-dictionary.tar.gz pic-sure-hpds-dictionary.tar.gz
+#aws s3 --sse=AES256 cp s3://${stack_s3_bucket}/data/${destination_bucket_hash}/javabins_rekeyed.tar.gz .
+
+#tar -zxvf javabins_rekeyed.tar.gz columnMeta.csv conceptsToRemove.csv
+GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
+GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
+
+cd tagging
+
+docker build -t hms-dbmi/pic-sure-hpds-dictionary:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} -f Dockerfile_hpds_dictionary .
+
+docker save hms-dbmi/pic-sure-hpds-dictionary:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} | gzip &gt; pic-sure-hpds-dictionary.tar.gz
+
+HPDS_ETL_IMAGE=`docker load &lt; ./pic-sure-hpds-dictionary.tar.gz  | cut -d &apos; &apos; -f 3`
+
+cd ${WORKSPACE}
+
+echo $HPDS_ETL_IMAGE
+ls -alh `pwd`
+
+mkdir -p tmp/
+mkdir -p local
+mkdir -p local/source
+mkdir -p output/
+#cp columnMeta.csv local/source/
+#cp conceptsToRemove.csv local/source/
+
+### Pull data set to rekey.
+aws sts assume-role --duration-seconds 3600 --role-arn arn:aws:iam::736265540791:role/dbgap-etl --role-session-name &quot;s3-test&quot; &gt; assume-role-output.txt
+
+export AWS_ACCESS_KEY_ID=`grep AccessKeyId assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+export AWS_SECRET_ACCESS_KEY=`grep SecretAccessKey assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+export AWS_SESSION_TOKEN=`grep SessionToken assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+
+aws s3 cp ${managed_inputs} .
+
+csvcut -c 1,2,3,8,9 Managed_Inputs.csv &gt; inputs.csv
+
+cat Managed_Inputs.csv
+
+cat	inputs.csv
+# pull dbgap dictionaries
+IFS=&apos;,&apos;
+[ ! -f inputs.csv ]
+while read abv_name stdy_id stdy_type data_ready data_processed
+do
+  if [[ &quot;${data_ready,,}&quot; == &quot;yes&quot; ]]; then
+
+	  #if [[ ${stdy_type,,} == &quot;topmed&quot; ]] || [[ ${stdy_type,,} == &quot;parent&quot; ]]; then
+        echo &quot;downloading metadata for $stdy_id&quot;
+        aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/${stdy_id}/metadata/ local/source/${stdy_id}/rawData/ --recursive --exclude &quot;*&quot; --include &quot;${stdy_id}*.xml&quot; --quiet
+        #aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/${stdy_id}/metadata/ local/source/${stdy_id}/rawData/ --recursive --exclude &quot;*&quot; --include &quot;*.json&quot; 
+
+      #fi
+   else 
+      echo &quot;$abv_name not ready for processing&quot;
+   fi
+done &lt; inputs.csv
+
+### Temp to get to this work
+### non compliant and harmonized studies
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/phs002415/metadata/babyhug_metadata.json local/source/phs002415/rawData/babyhug_metadata.json
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/phs002362/metadata/csscd_metadata.json.json local/source/phs002362/rawData/csscd_metadata.json
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/phs002385/metadata/hct_for_scd_metadata.json local/source/phs002385/rawData/hctforscd_metadata.json
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/phs002348/metadata/msh_metadata.json local/source/phs002348/rawData/msh_metadata.json
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/phs002299/metadata/orchid_metadata.json local/source/phs002299/rawData/
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/phs002363/metadata/redcoral_metadata.json local/source/phs002363/rawData/
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/phs002386/metadata/stopii_metadata.json local/source/phs002386/rawData/
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/phs002383/metadata/walkphasst_metadata.json local/source/phs002383/rawData/
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/phs002694/metadata/activ4a_metadata.json local/source/phs002694/rawData/
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/phs002710/metadata/activ4b_metadata.json local/source/phs002710/rawData/
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/phs002752/metadata/c3po_metadata.json local/source/phs002752/rawData/
+
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/hrmn/metadata/dcc_harmonized.json  local/source/hrmn/rawData/
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/columnMeta/columnMeta.csv local/source/columnMeta.csv
+
+unset AWS_ACCESS_KEY_ID
+unset AWS_SECRET_ACCESS_KEY
+unset AWS_SESSION_TOKEN
+
+aws sts assume-role --duration-seconds 3600 --role-arn arn:aws:iam::736265540791:role/dbgap-etl --role-session-name &quot;s3-test&quot; &gt; assume-role-output.txt
+
+export AWS_ACCESS_KEY_ID=`grep AccessKeyId assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+export AWS_SECRET_ACCESS_KEY=`grep SecretAccessKey assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+export AWS_SESSION_TOKEN=`grep SessionToken assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+
+aws s3 cp s3://avillach-73-bdcatalyst-etl/general/data/conceptsToRemove.txt local/source/conceptsToRemove.csv
+
+unset AWS_ACCESS_KEY_ID
+unset AWS_SECRET_ACCESS_KEY
+unset AWS_SESSION_TOKEN
+
+### need conceptsToRemove.txt from another source after development is done
+
+#### Execute dictionary import
+# volume mount pwd that contains original data files as /opt/local/source/
+#
+mkdir -p &quot;${WORKSPACE}&quot;/output
+echo &quot;docker run -i -v &quot;${WORKSPACE}&quot;/local/source:/local/source -v &quot;${WORKSPACE}&quot;/output:/usr/local/docker-config/search/ -eLOADER_NAME=DictionaryImporterUtil $HPDS_ETL_IMAGE&quot;
+docker run -i -v &quot;${WORKSPACE}&quot;/tagging/local/source:/local/source/ -v &quot;${WORKSPACE}&quot;/tagging/output:/usr/local/docker-config/search/ -eLOADER_NAME=DictionaryImporterUtil $HPDS_ETL_IMAGE
+
+cd &quot;$WORKSPACE&quot;/tagging/output
+ts=$(date &apos;+%m-%d-%y&apos;)
+tar -cvzf dictionary_javabin_${ts}.tar.gz *.javabin 
+
+aws sts assume-role --duration-seconds 3600 --role-arn arn:aws:iam::736265540791:role/dbgap-etl --role-session-name &quot;s3-test&quot; &gt; assume-role-output.txt
+
+export AWS_ACCESS_KEY_ID=`grep AccessKeyId assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+export AWS_SECRET_ACCESS_KEY=`grep SecretAccessKey assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+export AWS_SESSION_TOKEN=`grep SessionToken assume-role-output.txt | cut -d &apos;:&apos; -f 2 | sed &quot;s/[ ,\&quot;]//g&quot;`
+
+echo &quot;aws s3 --sse=AES256 cp dictionary.javabin.tar.gz s3://${stack_s3_bucket}/data/${destination_bucket_hash}/&quot;
+#aws s3 --sse=AES256 cp dictionary.javabin.tar.gz s3://${stack_s3_bucket}/data/${destination_bucket_hash}/ --quiet
+
+aws s3 --sse=AES256 cp dictionary_javabin_${ts}.tar.gz s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/
+
+aws s3 --sse=AES256 cp Missing_Dictionary_Entries_${ts}.csv s3://avillach-73-bdcatalyst-etl/general/hpds/javabin/
+
+unset AWS_ACCESS_KEY_ID
+unset AWS_SECRET_ACCESS_KEY
+unset AWS_SESSION_TOKEN</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.40">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+  </buildWrappers>
+</project>

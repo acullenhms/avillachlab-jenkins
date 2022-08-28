@@ -4,6 +4,10 @@
   <description></description>
   <keepDependencies>false</keepDependencies>
   <properties>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.33">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
     <hudson.model.ParametersDefinitionProperty>
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
@@ -109,7 +113,7 @@ do
         aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/decoded_data/ data/ --recursive --exclude=&quot;*&quot; --include=&quot;${stdy_id}*&quot; --quiet
         aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/mappings/${stdy_id}/mapping2.csv data/mapping2.csv --quiet
 		aws s3 cp s3://avillach-73-bdcatalyst-etl/${abv_name,,}/data/${abv_name^^}_PatientMapping.v2.csv data/  --quiet
-  
+        
         rm -rf resources/job.config
   
   		echo &quot;trialid=${abv_name^^}&quot; &gt; resources/job.config
@@ -119,6 +123,7 @@ do
         
         echo &quot;Numeric mappings before Analyzer $(grep &quot;NUMERIC&quot; data/mapping2.csv | wc -l)&quot;
         echo &quot;Text mappings before Analyzer $(grep &quot;TEXT&quot; data/mapping2.csv | wc -l)&quot;
+        
         java -jar DataAnalyzer.jar -propertiesfile resources/job.config -mappingskipheaders N -trialid ${abv_name^^}
         
         cp completed/mapping.csv data/mapping2.csv
@@ -128,7 +133,7 @@ do
         
         java -jar Partitioner.jar -propertiesfile resources/job.config -mappingskipheaders N -trialid ${abv_name^^}
         
-        bash runpartition.sh -j 8 -m 3g -c &apos;config.part*.config&apos; -r resources/
+        bash runpartition.sh -j 14 -m 3g -c &apos;config.part*.config&apos; -r resources/
         
         java -jar MergePartitions.jar -propertiesfile resources/job.config
            
